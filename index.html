@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chase — bet tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EEF0EA; --slip:#FAFAF6; --ink:#16213A; --ink-soft:#5A6478;
+    --line:#CDD2C8; --red:#C8102E; --green:#1B7F4B; --amber:#E0A80B;
+    --radius:4px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 Barlow,system-ui,sans-serif}
+  h1,h2,h3,.num{font-family:"Barlow Condensed",Barlow,sans-serif;font-weight:700;margin:0}
+  button{font:inherit;cursor:pointer;border:1px solid var(--ink);background:var(--slip);color:var(--ink);padding:6px 12px;border-radius:var(--radius)}
+  button.primary{background:var(--ink);color:#fff}
+  button.win{background:var(--green);border-color:var(--green);color:#fff}
+  button.lose{background:var(--red);border-color:var(--red);color:#fff}
+  button.ghost{border-color:transparent;background:transparent;color:var(--ink-soft);padding:2px 6px}
+  button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--amber);outline-offset:1px}
+  input,select{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:var(--ink);width:100%}
+  label{display:block;font-size:13px;color:var(--ink-soft);margin-bottom:3px}
+  .field{margin-bottom:10px}
+
+  header{display:flex;align-items:baseline;justify-content:space-between;padding:18px 20px 10px;border-bottom:2px solid var(--ink)}
+  header h1{font-size:30px;letter-spacing:.5px}
+  header .tax{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-soft)}
+  header .tax input{width:70px}
+
+  .layout{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 64px)}
+  aside{border-right:1px solid var(--line);padding:16px}
+  main{padding:20px;max-width:780px}
+  @media(max-width:760px){.layout{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}}
+
+  .people{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+  .people button.on{background:var(--ink);color:#fff}
+  .chain-item{width:100%;text-align:left;border:1px solid var(--line);background:var(--slip);padding:8px 10px;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px}
+  .chain-item.on{border-color:var(--ink);border-left-width:4px}
+  .chain-item .num{font-size:18px}
+  .pos{color:var(--green)} .neg{color:var(--red)} .wait{color:var(--amber)}
+  .summary{font-size:13px;color:var(--ink-soft);margin-top:12px;line-height:1.6}
+
+  /* the slip */
+  .slip{background:var(--slip);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 1px 0 var(--line)}
+  .slip-head{padding:14px 18px;border-bottom:1px dashed var(--line);display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .slip-head h2{font-size:24px}
+  .stub{padding:12px 18px;border-bottom:1px dashed var(--line);display:grid;grid-template-columns:32px 1fr auto;gap:12px;align-items:center}
+  .stub .idx{font-family:"Barlow Condensed";font-weight:700;font-size:20px;color:var(--ink-soft)}
+  .stub .desc{font-weight:600}
+  .stub .meta{font-size:13px;color:var(--ink-soft)}
+  .stub .right{text-align:right}
+  .stamp{display:inline-block;font-family:"Barlow Condensed";font-weight:700;font-size:16px;letter-spacing:1px;padding:1px 8px;border:2px solid;border-radius:3px;transform:rotate(-4deg)}
+  .stamp.won{color:var(--green);border-color:var(--green)}
+  .stamp.lost{color:var(--red);border-color:var(--red)}
+  .stamp.pending{color:var(--amber);border-color:var(--amber);transform:none}
+
+  .next{padding:16px 18px;background:#fff}
+  .next .big{font-size:56px;line-height:1;margin:4px 0 2px}
+  .next .big small{font-size:18px;color:var(--ink-soft);font-weight:500}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
+  @media(max-width:520px){.grid3,.grid2{grid-template-columns:1fr}}
+  .calc{font-size:13px;color:var(--ink-soft);margin:6px 0 12px;line-height:1.7}
+  .calc b{color:var(--ink)}
+  .closed{padding:16px 18px;text-align:center;font-family:"Barlow Condensed";font-size:22px}
+  .empty{padding:30px;text-align:center;color:var(--ink-soft)}
+  .tools{margin-top:16px;font-size:13px;display:flex;gap:10px;flex-wrap:wrap}
+  .warn{background:#FFF3C4;border:1px solid var(--amber);padding:8px 12px;font-size:13px;margin-bottom:14px;border-radius:var(--radius)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Chase</h1>
+  <div class="tax"><span>Tax per bet $</span><input id="taxInput" type="number" step="0.01" min="0"></div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="people" id="people"></div>
+    <div id="chains"></div>
+    <div class="summary" id="personSummary"></div>
+    <div class="tools">
+      <button class="ghost" onclick="exportData()">Export backup</button>
+      <button class="ghost" onclick="document.getElementById('importFile').click()">Import</button>
+      <input id="importFile" type="file" accept="application/json" style="display:none" onchange="importData(this)">
+    </div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<script>
+/* ---------- storage (localStorage, memory fallback) ---------- */
+const KEY='chase:v1';
+let memory=null;
+function load(){
+  try{const raw=localStorage.getItem(KEY);if(raw)return JSON.parse(raw);}catch(e){}
+  return memory||{tax:0.25,people:[],active:null,activeChain:null};
+}
+function save(){
+  memory=state;
+  try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
+}
+let state=load();
+const uid=()=>Math.random().toString(36).slice(2,9);
+const $=id=>document.getElementById(id);
+const money=n=>(n<0?'-':'')+'$'+Math.abs(n).toFixed(2);
+const fmtOdds=o=>(o>0?'+':'')+o;
+
+/* ---------- betting math ---------- */
+// profit per $1 staked from American odds
+function mult(odds){ return odds>0 ? odds/100 : 100/Math.abs(odds); }
+function chainSunk(c){ // money gone on lost bets, including tax
+  return c.bets.filter(b=>b.status==='lost').reduce((s,b)=>s+b.stake+b.tax,0);
+}
+function chainStatus(c){
+  if(c.bets.some(b=>b.status==='won'))return 'won';
+  if(c.abandoned)return 'abandoned';
+  if(c.bets.some(b=>b.status==='pending'))return 'pending';
+  return 'open'; // last bet lost, needs next bet
+}
+function chainNet(c){
+  const spent=c.bets.reduce((s,b)=>s+b.stake+b.tax,0);
+  const ret=c.bets.filter(b=>b.status==='won').reduce((s,b)=>s+b.stake+b.stake*mult(b.odds),0);
+  return ret-spent;
+}
+// stake needed so that (stake * mult) - tax - sunk >= target
+function suggestedStake(sunk,odds,tax,target){
+  const s=(sunk+tax+target)/mult(odds);
+  return Math.ceil(s*100)/100;
+}
+
+/* ---------- helpers ---------- */
+const person=()=>state.people.find(p=>p.id===state.active);
+const chain=()=>person()?.chains.find(c=>c.id===state.activeChain);
+
+function addPerson(){
+  const name=prompt('Name');if(!name)return;
+  const p={id:uid(),name,chains:[]};state.people.push(p);state.active=p.id;state.activeChain=null;save();render();
+}
+function removePerson(){
+  const p=person();if(!p||!confirm(`Delete ${p.name} and all their chains?`))return;
+  state.people=state.people.filter(x=>x.id!==p.id);state.active=state.people[0]?.id||null;state.activeChain=null;save();render();
+}
+function pick(id){state.active=id;state.activeChain=null;save();render();}
+function pickChain(id){state.activeChain=id;save();render();}
+
+function startChain(){
+  const p=person();if(!p)return;
+  const desc=$('c-desc').value.trim()||'Bet 1';
+  const odds=parseInt($('c-odds').value,10), stake=parseFloat($('c-stake').value);
+  if(!odds||odds>-100&&odds<100||!(stake>0))return alert('Enter valid American odds (e.g. +120 or -110) and a stake.');
+  const tax=state.tax;
+  const mode=$('c-target').value;
+  let target=0;
+  if(mode==='profit')target=Math.round(stake*mult(odds)*100)/100 - tax;
+  if(mode==='custom')target=parseFloat($('c-custom').value)||0;
+  const c={id:uid(),name:desc,createdAt:Date.now(),target,bets:[{id:uid(),desc,odds,stake,tax,status:'pending',at:Date.now()}]};
+  p.chains.unshift(c);state.activeChain=c.id;save();render();
+}
+function placeNext(){
+  const c=chain();if(!c)return;
+  const desc=$('n-desc').value.trim()||`Bet ${c.bets.length+1}`;
+  const odds=parseInt($('n-odds').value,10), stake=parseFloat($('n-stake').value);
+  if(!odds||odds>-100&&odds<100||!(stake>0))return alert('Enter valid odds and a stake.');
+  c.bets.push({id:uid(),desc,odds,stake,tax:state.tax,status:'pending',at:Date.now()});save();render();
+}
+function settle(betId,status){const c=chain();const b=c.bets.find(b=>b.id===betId);b.status=status;save();render();}
+function reopen(betId){const c=chain();const b=c.bets.find(b=>b.id===betId);b.status='pending';c.abandoned=false;save();render();}
+function abandon(){const c=chain();if(confirm('Stop chasing this chain and take the loss?')){c.abandoned=true;save();render();}}
+function deleteChain(){const p=person();if(confirm('Delete this chain?')){p.chains=p.chains.filter(c=>c.id!==state.activeChain);state.activeChain=null;save();render();}}
+function updateSuggest(){
+  const c=chain();if(!c)return;
+  const odds=parseInt($('n-odds').value,10);
+  const out=$('n-suggest');
+  if(!odds||odds>-100&&odds<100){out.innerHTML='<span class="big">—</span>';return;}
+  const sunk=chainSunk(c), tax=state.tax;
+  const s=suggestedStake(sunk,odds,tax,c.target);
+  $('n-stake').value=s.toFixed(2);
+  const profit=s*mult(odds);
+  out.innerHTML=`<div class="big num">${money(s)} <small>at ${fmtOdds(odds)}</small></div>
+    <div class="calc">Returns <b>${money(s+profit)}</b> if it hits (profit ${money(profit)}). After ${money(tax)} tax and ${money(sunk)} already lost, you'd finish <b class="pos">${money(profit-tax-sunk)}</b> up.
+    <br>Total at risk if this loses too: <b class="neg">${money(sunk+s+tax)}</b>.</div>`;
+}
+
+/* ---------- export / import ---------- */
+function exportData(){
+  const a=document.createElement('a');
+  a.href='data:application/json,'+encodeURIComponent(JSON.stringify(state,null,2));
+  a.download=`chase-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();
+}
+function importData(inp){
+  const f=inp.files[0];if(!f)return;
+  f.text().then(t=>{try{state=JSON.parse(t);save();render();}catch(e){alert('That file is not a valid backup.');}});
+}
+
+/* ---------- render ---------- */
+function render(){
+  $('taxInput').value=state.tax;
+  // people
+  $('people').innerHTML=state.people.map(p=>`<button class="${p.id===state.active?'on':''}" onclick="pick('${p.id}')">${p.name}</button>`).join('')
+    +`<button class="ghost" onclick="addPerson()">+ person</button>`;
+  const p=person();
+  if(!p){$('chains').innerHTML='';$('personSummary').innerHTML='Add a person to start tracking.';$('main').innerHTML='<div class="empty">Add a person on the left, then start a chain.</div>';return;}
+
+  // chain list
+  $('chains').innerHTML=`<button class="chain-item ${!state.activeChain?'on':''}" onclick="pickChain(null)"><span>+ New chain</span></button>`
+    +p.chains.map(c=>{
+      const st=chainStatus(c), net=chainNet(c);
+      const cls=st==='won'?'pos':st==='pending'?'wait':'neg';
+      const label=st==='won'?money(net):st==='pending'?'live':st==='abandoned'?money(net):'needs bet';
+      return `<button class="chain-item ${c.id===state.activeChain?'on':''}" onclick="pickChain('${c.id}')">
+        <span>${c.name}<br><span class="meta" style="font-size:12px;color:var(--ink-soft)">${c.bets.length} bet${c.bets.length>1?'s':''}</span></span>
+        <span class="num ${cls}">${label}</span></button>`;}).join('');
+
+  const closed=p.chains.filter(c=>['won','abandoned'].includes(chainStatus(c)));
+  const net=closed.reduce((s,c)=>s+chainNet(c),0);
+  const open=p.chains.length-closed.length;
+  $('personSummary').innerHTML=`<b>${p.name}</b><br>Settled chains: ${closed.length} (${closed.filter(c=>chainStatus(c)==='won').length} won)<br>Net: <span class="${net>=0?'pos':'neg'}">${money(net)}</span><br>Open chains: ${open}
+    <br><button class="ghost" onclick="removePerson()">delete ${p.name}</button>`;
+
+  const c=chain();
+  $('main').innerHTML=c?renderChain(c):renderNewChain();
+  if(c&&chainStatus(c)==='open')updateSuggest();
+}
+
+function renderNewChain(){
+  return `<div class="slip">
+    <div class="slip-head"><h2>Start a chain</h2><span class="meta" style="color:var(--ink-soft);font-size:13px">First bet sets the target</span></div>
+    <div class="next">
+      <div class="grid3">
+        <div class="field"><label>What's the bet</label><input id="c-desc" placeholder="e.g. Bears ML + over 44.5"></div>
+        <div class="field"><label>Odds (American)</label><input id="c-odds" type="number" placeholder="+120"></div>
+        <div class="field"><label>Stake $</label><input id="c-stake" type="number" step="0.01" min="0.01" placeholder="1.00"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>If it loses, chase until I'm…</label>
+          <select id="c-target" onchange="$('c-custom').parentElement.style.display=this.value==='custom'?'':'none'">
+            <option value="even">Back to even (recover losses + taxes)</option>
+            <option value="profit">Up what bet 1 would have won</option>
+            <option value="custom">Up a custom amount</option>
+          </select></div>
+        <div class="field" style="display:none"><label>Custom profit $</label><input id="c-custom" type="number" step="0.01" placeholder="1.00"></div>
+      </div>
+      <button class="primary" onclick="startChain()">Place bet 1</button>
+    </div></div>`;
+}
+
+function renderChain(c){
+  const st=chainStatus(c), sunk=chainSunk(c);
+  const stubs=c.bets.map((b,i)=>{
+    const profit=b.stake*mult(b.odds);
+    const actions=b.status==='pending'
+      ?`<button class="win" onclick="settle('${b.id}','won')">Won</button> <button class="lose" onclick="settle('${b.id}','lost')">Lost</button>`
+      :`<span class="stamp ${b.status}">${b.status.toUpperCase()}</span> <button class="ghost" title="Undo" onclick="reopen('${b.id}')">undo</button>`;
+    return `<div class="stub"><div class="idx">${i+1}</div>
+      <div><div class="desc">${b.desc}</div><div class="meta">${fmtOdds(b.odds)} · staked ${money(b.stake)} + ${money(b.tax)} tax · pays ${money(b.stake+profit)}</div></div>
+      <div class="right">${actions}</div></div>`;}).join('');
+
+  let foot='';
+  if(st==='won'){
+    foot=`<div class="closed pos">Chain closed — net ${money(chainNet(c))}</div>`;
+  }else if(st==='abandoned'){
+    foot=`<div class="closed neg">Stopped — took a ${money(chainNet(c))} loss <button class="ghost" onclick="chain().abandoned=false;save();render()">resume</button></div>`;
+  }else if(st==='pending'){
+    foot=`<div class="closed wait">Waiting on bet ${c.bets.length}…</div>`;
+  }else{
+    foot=`<div class="next">
+      <div class="calc">Lost so far <b class="neg">${money(sunk)}</b> · goal: finish <b>${c.target>0?money(c.target)+' up':'at even'}</b> · tax <b>${money(state.tax)}</b></div>
+      <div class="grid3">
+        <div class="field"><label>Next bet</label><input id="n-desc" placeholder="e.g. Packers -3.5"></div>
+        <div class="field"><label>Odds</label><input id="n-odds" type="number" placeholder="-110" oninput="updateSuggest()"></div>
+        <div class="field"><label>Stake $ (auto, editable)</label><input id="n-stake" type="number" step="0.01" min="0.01"></div>
+      </div>
+      <div id="n-suggest"><span class="big">—</span><div class="calc">Enter the odds to see what to stake.</div></div>
+      <button class="primary" onclick="placeNext()">Place bet ${c.bets.length+1}</button>
+      <button onclick="abandon()">Stop chasing</button>
+    </div>`;
+  }
+  return `<div class="slip">
+    <div class="slip-head"><h2>${c.name}</h2><span><span class="meta" style="font-size:13px;color:var(--ink-soft)">${new Date(c.createdAt).toLocaleDateString()}</span> <button class="ghost" onclick="deleteChain()">delete</button></span></div>
+    ${stubs}${foot}</div>`;
+}
+
+$('taxInput').addEventListener('change',e=>{state.tax=Math.max(0,parseFloat(e.target.value)||0);save();render();});
+render();
+</script>
+</body>
+</html>
